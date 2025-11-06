@@ -1,0 +1,61 @@
+#!/bin/bash
+set -euo pipefail
+
+MODE=${1:-}
+if [[ "$MODE" != "on" && "$MODE" != "off" ]]; then
+  echo "Usage: $0 <on|off>" >&2
+  exit 1
+fi
+
+log() {
+  logger -t fullpageos-display-power "$1"
+}
+
+if command -v vcgencmd >/dev/null 2>&1; then
+  if [[ "$MODE" == "on" ]]; then
+    vcgencmd display_power 1 >/dev/null 2>&1 || {
+      log "vcgencmd failed to turn display on"
+      exit 1
+    }
+  else
+    vcgencmd display_power 0 >/dev/null 2>&1 || {
+      log "vcgencmd failed to turn display off"
+      exit 1
+    }
+  fi
+  exit 0
+fi
+
+if command -v tvservice >/dev/null 2>&1; then
+  if [[ "$MODE" == "on" ]]; then
+    tvservice -p >/dev/null 2>&1 || {
+      log "tvservice failed to power on display"
+      exit 1
+    }
+    if command -v chvt >/dev/null 2>&1; then
+      # Switch virtual terminals to coax the framebuffer back
+      chvt 1 >/dev/null 2>&1 || true
+      chvt 7 >/dev/null 2>&1 || true
+    fi
+  else
+    tvservice -o >/dev/null 2>&1 || {
+      log "tvservice failed to power off display"
+      exit 1
+    }
+  fi
+  exit 0
+fi
+
+if command -v xset >/dev/null 2>&1; then
+  display_env=${DISPLAY:-:0}
+  dpms_action=$MODE
+  if id pi >/dev/null 2>&1; then
+    su -l pi -c "DISPLAY=$display_env xset dpms force $dpms_action" >/dev/null 2>&1 && exit 0
+  fi
+  DISPLAY=$display_env xset dpms force $dpms_action >/dev/null 2>&1 && exit 0
+  log "xset failed to control the display"
+  exit 1
+fi
+
+log "No supported utility available to control display power"
+exit 1

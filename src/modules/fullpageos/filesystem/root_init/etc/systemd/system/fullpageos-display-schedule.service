@@ -1,0 +1,10 @@
+[Unit]
+Description=Configure FullPageOS display power schedule
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fullpageos-apply-display-schedule
+
+[Install]
+WantedBy=multi-user.target

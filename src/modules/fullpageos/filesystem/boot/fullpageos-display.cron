@@ -1,0 +1,5 @@
+# Edit the CRON-style schedule below to control when the display turns on and off.
+# Each entry is separated by a semicolon and must end with either "on" or "off".
+# Fields follow the standard "minute hour day-of-month month day-of-week" format.
+# The default schedule powers the display on at 08:00 and off at 18:00, Monday through Friday.
+DISPLAY_POWER_SCHEDULE="0 8 * * 1-5 on;0 18 * * 1-5 off"
