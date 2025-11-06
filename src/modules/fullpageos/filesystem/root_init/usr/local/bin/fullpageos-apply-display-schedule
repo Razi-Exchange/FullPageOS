@@ -1,0 +1,76 @@
+#!/bin/bash
+set -euo pipefail
+
+CONFIG_CANDIDATES=(
+  /boot/fullpageos-display.cron
+  /boot/firmware/fullpageos-display.cron
+)
+DEFAULT_SCHEDULE="0 8 * * 1-5 on;0 18 * * 1-5 off"
+CONFIG_FILE=""
+
+for path in "${CONFIG_CANDIDATES[@]}"; do
+  if [[ -f "$path" ]]; then
+    CONFIG_FILE="$path"
+    break
+  fi
+done
+
+if [[ -n "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+SCHEDULE=${DISPLAY_POWER_SCHEDULE:-$DEFAULT_SCHEDULE}
+CRON_FILE=/etc/cron.d/fullpageos-display-power
+TMP_FILE=$(mktemp)
+trap 'rm -f "$TMP_FILE"' EXIT
+
+print_header() {
+  cat <<'HEADER'
+# Managed by fullpageos-apply-display-schedule
+# Edit /boot/fullpageos-display.cron to change the schedule.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+HEADER
+}
+
+trim_entry() {
+  local entry="$1"
+  # Remove leading and trailing whitespace and squeeze internal whitespace to single spaces
+  printf '%s' "$entry" | awk '{$1=$1; print}'
+}
+
+write_entry() {
+  local raw="$1"
+  local entry
+  entry=$(trim_entry "$raw") || entry=""
+  if [[ -z "$entry" ]]; then
+    return
+  fi
+  read -r -a parts <<<"$entry"
+  local count=${#parts[@]}
+  if (( count < 6 )); then
+    logger -t fullpageos-display-schedule "Ignoring entry '$entry': expected CRON expression followed by action"
+    return
+  fi
+  local action=${parts[count-1]}
+  action=$(echo "$action" | tr '[:upper:]' '[:lower:]')
+  unset 'parts[count-1]'
+  local cron_spec="${parts[*]}"
+  if [[ "$action" != "on" && "$action" != "off" ]]; then
+    logger -t fullpageos-display-schedule "Ignoring entry '$entry': action must be 'on' or 'off'"
+    return
+  fi
+  echo "$cron_spec root /usr/local/bin/fullpageos-display-power $action" >> "$TMP_FILE"
+}
+
+print_header > "$TMP_FILE"
+IFS=';'
+read -r -a entries <<<"$SCHEDULE"
+unset IFS
+for entry in "${entries[@]}"; do
+  write_entry "$entry"
+done
+
+install -m 644 "$TMP_FILE" "$CRON_FILE"
+logger -t fullpageos-display-schedule "Installed display power schedule from ${CONFIG_FILE:-defaults}"
