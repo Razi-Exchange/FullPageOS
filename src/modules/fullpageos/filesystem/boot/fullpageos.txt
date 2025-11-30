@@ -1,1 +1,1 @@
-http://localhost/FullPageDashboard
+https://razitv.app/api/v1/devices/by-serial/{serial}/

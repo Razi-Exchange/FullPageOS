@@ -156,3 +156,7 @@ Example::
 
 
 Code contribution would be appreciated!
+
+
+xz -9 -T0 2024-11-19-raspios-bookworm-armhf-lite.img
+
